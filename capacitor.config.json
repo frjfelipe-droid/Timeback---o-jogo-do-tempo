@@ -1,0 +1,8 @@
+{
+  "appId": "com.felipe.voltanotempo",
+  "appName": "Volta no Tempo",
+  "webDir": "www",
+  "backgroundColor": "#07060c",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never" }
+}
