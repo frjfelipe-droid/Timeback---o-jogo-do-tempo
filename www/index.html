@@ -312,6 +312,7 @@ function setMusicOn(on){ AU.on=on; if(AU.ctx){ AU.music.gain.setTargetAtTime(on?
 function ambRain(){} function ambHum(){}
 // ---- efeitos (todos tonais) ----
 function sfx(name,p=1){
+  try{ hapticFor(name,p); }catch(e){}
   const A=AU.ctx; if(!A) return; const t=A.currentTime; const D=AU.sfx;
   const tone=(type,f1,f2,dur,vol,delay=0,verb=0)=>{ const o=A.createOscillator(); o.type=type; const g=A.createGain(); o.connect(g); g.connect(D); const t0=t+delay;
     o.frequency.setValueAtTime(f1,t0); if(f2) o.frequency.exponentialRampToValueAtTime(f2,t0+dur);
@@ -1199,7 +1200,7 @@ function Prep(b){ if(P(b)){ IN.rep[b]=G.t+0.35; return true; } if(IN.held[b] && 
   const endS=e=>{ for(const t of e.changedTouches) if(t.identifier===sid){ sid=null; knob.style.transform=''; TOUCH.left=TOUCH.right=TOUCH.up=TOUCH.down=false; } };
   addEventListener('touchend',endS); addEventListener('touchcancel',endS);
   [['bA','a'],['bB','b'],['bY','y'],['bS','start']].forEach(([id,b])=>{ const el=document.getElementById(id);
-    el.addEventListener('touchstart',e=>{ e.preventDefault(); audioInit(); TOUCH[b]=true; LATCH[b]=true; el.classList.add('on'); if(navigator.vibrate) try{navigator.vibrate(8);}catch(_){} },{passive:false});
+    el.addEventListener('touchstart',e=>{ e.preventDefault(); audioInit(); TOUCH[b]=true; LATCH[b]=true; el.classList.add('on'); try{ haptic(8); }catch(_){} },{passive:false});
     const up=e=>{ e.preventDefault(); TOUCH[b]=false; el.classList.remove('on'); }; el.addEventListener('touchend',up,{passive:false}); el.addEventListener('touchcancel',up,{passive:false}); });
   cv.addEventListener('touchstart',e=>{ audioInit(); if(G.mode==='boot'){ TOUCH.a=true; setTimeout(()=>TOUCH.a=false,90); } },{passive:true});
   cv.addEventListener('mousedown',()=>{ audioInit(); if(G.mode==='boot') KB.a=true; setTimeout(()=>KB.a=false,80); });
@@ -1520,7 +1521,7 @@ function drawBoot(c){ bands(c,0,0,W,H,['#05040e','#0a0818','#120e26']);
   if(Math.floor(G.t*2)%2===0) textC(c,'toque na tela ou pressione A / Enter',W/2,110,'#f3e9d2');
   textC(c,'o jogo abre em tela cheia  ·  F alterna',W/2,140,'#6a6088'); textC(c,'use fones de ouvido',W/2,154,'#6a6088'); }
 // ---------- MENU ----------
-function menuItems(){ const s=loadSave(); const it=[]; if(s&&s.chapter>0) it.push(['Continuar','cont']); it.push(['Novo jogo','new'],['Escolher capítulo','chap'],['Árvore de escolhas','hist'],['Finais','end'],['Música: '+(AU.on?'sim':'não'),'mus']); if(canFS()) it.push(['Tela cheia: '+(isFS()?'sim':'não'),'fs']); it.push(['Créditos','cred']); return it; }
+function menuItems(){ const s=loadSave(); const it=[]; if(s&&s.chapter>0) it.push(['Continuar','cont']); it.push(['Novo jogo','new'],['Escolher capítulo','chap'],['Árvore de escolhas','hist'],['Finais','end'],['Música: '+(AU.on?'sim':'não'),'mus'],['Vibração: '+(G.vib?'sim':'não'),'vib']); if(canFS()) it.push(['Tela cheia: '+(isFS()?'sim':'não'),'fs']); it.push(['Créditos','cred']); return it; }
 function updateMenu(){ const it=menuItems(); G.st+=G.dt;
   if(Prep('up')){ G.menuSel=(G.menuSel+it.length-1)%it.length; sfx('move'); } if(Prep('down')){ G.menuSel=(G.menuSel+1)%it.length; sfx('move'); }
   G.menuSel=Math.min(G.menuSel,it.length-1);
@@ -1528,13 +1529,13 @@ function updateMenu(){ const it=menuItems(); G.st+=G.dt;
     if(k==='new'){ startGame(0); } else if(k==='cont'){ const s=loadSave(); G.flags=s.flags; G.history=s.history||[]; startGame(s.chapter); }
     else if(k==='hist'){ if(!G.history.length){ const s=loadSave(); if(s) G.history=s.history||[]; } G.histFrom='menu'; G.mode='history'; G.histScroll=0; }
     else if(k==='chap'){ G.mode='chapters'; G.chapSel=0; }
-    else if(k==='end'){ G.mode='endings'; } else if(k==='mus'){ setMusicOn(!AU.on); } else if(k==='fs'){ G.fsPref=!isFS(); } else if(k==='cred'){ startCredits(false); } } }
+    else if(k==='end'){ G.mode='endings'; } else if(k==='mus'){ setMusicOn(!AU.on); } else if(k==='vib'){ setVib(!G.vib); } else if(k==='fs'){ G.fsPref=!isFS(); } else if(k==='cred'){ startCredits(false); } } }
 function logo(c,x,y){ const t1='VOLTA', t2='NO TEMPO';
   textC(c,t1,x+1,y+2,'#1a0e04',null,4); textC(c,t1,x,y,'#c98a2a',null,4); c.save(); c.beginPath(); c.rect(0,y-4,W,12); c.clip(); textC(c,t1,x,y,'#ffe7a0',null,4); c.restore();
   textC(c,t2,x+1,y+33,'#1a0e04',null,2); textC(c,t2,x,y+32,'#e8d8f0',null,2);
   R(c,x-70,y+30,40,1,'#c98a2a'); R(c,x+30,y+30,40,1,'#c98a2a'); }
 function drawMenu(c){ c.globalAlpha=0.25; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; logo(c,W/2,26);
-  const it=menuItems(); it.forEach(([l],i)=>{ const y=84+i*10; const sel=i===G.menuSel; G.hits.push({x:W/2-70,y:y-2,w:140,h:10,fn:()=>{ G.menuSel=i; G.menuTap=true; }}); if(sel){ R(c,W/2-60,y-2,120,11,'rgba(242,196,90,0.14)'); text(c,'►',W/2-56+Math.round(Math.sin(G.t*6)),y,'#f2c45a'); }
+  const it=menuItems(); it.forEach(([l],i)=>{ const y=80+i*10; const sel=i===G.menuSel; G.hits.push({x:W/2-70,y:y-2,w:140,h:10,fn:()=>{ G.menuSel=i; G.menuTap=true; }}); if(sel){ R(c,W/2-60,y-2,120,11,'rgba(242,196,90,0.14)'); text(c,'►',W/2-56+Math.round(Math.sin(G.t*6)),y,'#f2c45a'); }
     textC(c,l,W/2,y,sel?'#fff':'#a89ac0','#000'); });
   textC(c,'Desenvolvido por Felipe',W/2,H-11,'#6a6088'); }
 function startGame(ch){ G.token++; frameWaiters=[]; G.mode='game'; G.fade.target=undefined; G.fade.a=1; G.dialog=G.choice=G.prompt=G.caption=G.card=G.watchP=G.free=null; G.letterOn=false; G.letter=0; G.fx={rewind:0,glitch:0,blur:0,vig:0.35,heart:0,sat:null,tint:null,noise:0.04};
@@ -1543,16 +1544,16 @@ function startGame(ch){ G.token++; frameWaiters=[]; G.mode='game'; G.fade.target
 function toMenu(){ G.token++; frameWaiters=[]; G.mode='menu'; G.menuSel=0; G.fx={rewind:0,glitch:0,blur:0,vig:0.35,heart:0,sat:null,tint:null,noise:0.04}; G.overlay=null; G.letterOn=false; G.letter=0;
   G.dialog=G.choice=G.prompt=G.caption=G.card=G.watchP=G.free=null; setScene(SCENES.titulo()); G.fade.a=1; G.fade.target=0; playMusic('menu'); if(AU.ctx){ambRain(0);ambHum(0);} }
 // ---------- PAUSA ----------
-function pauseItems(){ return ['Continuar','Árvore de escolhas','Caderno de pistas','Música: '+(AU.on?'sim':'não'),'Tela cheia: '+(isFS()?'sim':'não'),'Menu principal']; }
+function pauseItems(){ return ['Continuar','Árvore de escolhas','Caderno de pistas','Música: '+(AU.on?'sim':'não'),'Vibração: '+(G.vib?'sim':'não'),'Tela cheia: '+(isFS()?'sim':'não'),'Menu principal']; }
 function updatePause(){ const it=pauseItems(), n=it.length;
   if(P('b')||P('start')){ G.mode='game'; sfx('back'); return; }
   if(Prep('up')){ G.pauseSel=(G.pauseSel+n-1)%n; sfx('move'); } if(Prep('down')){ G.pauseSel=(G.pauseSel+1)%n; sfx('move'); }
   if(P('b')||P('start')){ G.mode='game'; sfx('back'); return; }
-  if(P('a')||G.pauseTap2){ G.pauseTap2=false; sfx('ok'); const s=G.pauseSel; if(s===0) G.mode='game'; else if(s===1){ G.histFrom='pause'; G.mode='history'; G.histScroll=0; } else if(s===2){ G.mode='clues'; G.histScroll=0; } else if(s===3) setMusicOn(!AU.on); else if(s===4) G.fsPref=!isFS(); else toMenu(); } }
-function drawPause(c){ c.globalAlpha=0.7; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; frameBox(c,W/2-70,30,140,114);
-  textC(c,'PAUSA',W/2,40,'#f2c45a','#000',1); const it=pauseItems();
-  it.forEach((l,i)=>{ const y=56+i*13, sel=i===G.pauseSel; G.hits.push({x:W/2-66,y:y-3,w:132,h:13,fn:()=>{ G.pauseSel=i; G.pauseTap2=true; }}); if(sel) text(c,'►',W/2-58,y,'#f2c45a'); textC(c,l,W/2,y,sel?'#fff':'#a89ac0'); });
-  textC(c,G.capName||'',W/2,150,'#6a6088'); }
+  if(P('a')||G.pauseTap2){ G.pauseTap2=false; sfx('ok'); const s=G.pauseSel; if(s===0) G.mode='game'; else if(s===1){ G.histFrom='pause'; G.mode='history'; G.histScroll=0; } else if(s===2){ G.mode='clues'; G.histScroll=0; } else if(s===3) setMusicOn(!AU.on); else if(s===4) setVib(!G.vib); else if(s===5) G.fsPref=!isFS(); else toMenu(); } }
+function drawPause(c){ c.globalAlpha=0.7; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; frameBox(c,W/2-70,24,140,126);
+  textC(c,'PAUSA',W/2,32,'#f2c45a','#000',1); const it=pauseItems();
+  it.forEach((l,i)=>{ const y=48+i*13, sel=i===G.pauseSel; G.hits.push({x:W/2-66,y:y-3,w:132,h:13,fn:()=>{ G.pauseSel=i; G.pauseTap2=true; }}); if(sel) text(c,'►',W/2-58,y,'#f2c45a'); textC(c,l,W/2,y,sel?'#fff':'#a89ac0'); });
+  textC(c,G.capName||'',W/2,156,'#6a6088'); }
 // ---------- HISTÓRICO / ÁRVORE ----------
 function histLayout(){ const rows=[]; let y=0; G.history.forEach((h,i)=>{ const qL=wrap(h.q,220); rows.push({h,i,y,qL}); y+=12+qL.length*10+ (h.opts.length+1)*10+6; }); return {rows,total:y}; }
 function updateHistory(){ const {total}=histLayout(); if(HELD('down')) G.histScroll=Math.min(Math.max(0,total-120),G.histScroll+G.dt*90); if(HELD('up')) G.histScroll=Math.max(0,G.histScroll-G.dt*90);
@@ -1640,7 +1641,7 @@ async function runMini(M){ G.mini=M; while(!M.done) await nextFrame(); G.mini=nu
 // ---- QTE: apertar A várias vezes ----
 async function mash(label,need,time){
   G.qte={label,need,n:0,t:0,time};
-  while(true){ await nextFrame(); const q=G.qte; q.t+=G.dt; if(P('a')){ q.n++; sfx('blip',1+q.n/need); G.shake=0.2; }
+  while(true){ await nextFrame(); const q=G.qte; q.t+=G.dt; if(P('a')){ q.n++; sfx('blip',1+q.n/need); haptic(18); }
     q.n=Math.max(0,q.n-G.dt*0.8);
     if(q.n>=need){ G.qte=null; sfx('ok'); return true; } if(q.t>=time){ G.qte=null; return false; } }
 }
@@ -1675,6 +1676,20 @@ function drawCone(c,cam){ const k=G.cone; if(!k) return; const x=k.x-cam, y=k.y;
   const g=c.createLinearGradient(x,0,x+k.dir*k.range,0); g.addColorStop(0,`rgba(255,${k.alert?80:220},80,0.30)`); g.addColorStop(1,'rgba(255,200,80,0)'); c.fillStyle=g;
   c.beginPath(); c.moveTo(x,y); c.lineTo(x+k.dir*k.range,y-16); c.lineTo(x+k.dir*k.range,y+26); c.closePath(); c.fill(); c.restore();
   if(k.sus>0){ const ax=x-2, ay=y-30; text(c,k.sus>=1?'!':'?',ax,ay-Math.round(Math.sin(G.t*10)),k.sus>=1?'#ff4a3a':'#ffd060','#000'); R(c,ax-6,ay-8,14,2,'#2a1010'); R(c,ax-6,ay-8,Math.round(14*Math.min(1,k.sus)),2,'#ff6a3a'); } }
+
+// ---- VIBRAÇÃO ----
+G.vib = (()=>{ try{ return localStorage.getItem('vnt_vib')!=='0'; }catch(e){ return true; } })();
+function setVib(on){ G.vib=on; try{ localStorage.setItem('vnt_vib',on?'1':'0'); }catch(e){} if(on) haptic(40); }
+function haptic(pat){
+  if(!G.vib) return;
+  try{ const H=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Haptics;
+    if(H){ const d=Array.isArray(pat)?pat.reduce((a,b,i)=>i%2?a:a+b,0):pat; if(d<=12) H.impact({style:'LIGHT'}); else if(d<=40) H.impact({style:'MEDIUM'}); else if(d<=90) H.impact({style:'HEAVY'}); else H.vibrate({duration:Math.min(400,d)}); return; }
+    if(navigator.vibrate) navigator.vibrate(pat); }catch(e){}
+}
+const HAPTIC={ok:10,back:8,move:4,alarm:[60,80,60,80,60],ping:15,error:[30,40,30],door:25,bell:[20,60,20],slam:70,thunder:[120,50,180],crash:[90,40,140],heart:[25,160,18],
+  coin:15,sparkle:10,rewind:[15,30,15,30,15,30,40],whoosh:[20,40,60],glitch:[10,20,10,20,10],car:40,trash:20,cough:[20,60,20],chime:12};
+function hapticFor(name,p){ if(name==='step'){ if(p>2) haptic(12); return; } const h=HAPTIC[name]; if(h) haptic(h); }
+let lastShake=0; setInterval(()=>{ if(G.shake>lastShake+0.15) haptic(Math.round(30+G.shake*70)); lastShake=G.shake; },50);
 // ================= FUTSAL: FINAL DO INTERCLASSE =================
 function makeMatch(){
   const M={ w:600, top:66, bot:170, gy:118, gh:22, t:0, half:1, clock:0, score:[0,0], state:'ready', stT:0, msg:'APITO INICIAL', rewinds:3,
@@ -1761,7 +1776,7 @@ function makeMatch(){
   function missCheck(force){ const s=M.lastShot; if(!s||!s.ctrl) { M.lastShot=null; return; } if(M.t-s.t<4 || force){ M.lastShot=null; offer('miss'); } }
   function offer(kind){ if(M.rewinds<=0){ return; } const idx=Math.max(0,M.snaps.length-30); M.state='prompt'; M.prompt={kind,t:0,hold:0,idx}; sfx('ping'); }
   function scored(team){ M.lastShot=null; if(team===1 && M.rewinds>0){ M.pendingGoal=1; offer('goal'); M.ball.vx*=0.1; M.ball.vy*=0.1; return; } applyGoal(team); }
-  function applyGoal(team){ M.score[team]++; M.state='goal'; M.stT=0; M.pendingKick=team?0:1; M.msg= team===0?'GOOOOL!':'GOL DELES...'; if(team===0){ sfx('sparkle'); sfx('laugh'); const sh=M.ball.lastTouch; if(sh&&sh.ctrl) M.lucasGoals++; } else sfx('error'); M.prompt=null; }
+  function applyGoal(team){ M.score[team]++; M.state='goal'; M.stT=0; M.pendingKick=team?0:1; M.msg= team===0?'GOOOOL!':'GOL DELES...'; if(team===0){ sfx('sparkle'); sfx('laugh'); haptic([60,40,60,40,140]); const sh=M.ball.lastTouch; if(sh&&sh.ctrl) M.lucasGoals++; } else { sfx('error'); haptic([120,60,40]); } M.prompt=null; }
   M.draw=function(c){
     const b=M.ball; const tc=Math.max(0,Math.min(M.w-W,b.x-W/2)); M.cam+=(tc-M.cam)*0.12; const cam=Math.round(M.cam);
     // arquibancada
