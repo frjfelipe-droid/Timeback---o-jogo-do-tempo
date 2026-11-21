@@ -1303,6 +1303,7 @@ function loop(now){
   else if(G.mode==='boot'){ if(P('a')||P('start')){ audioInit(); G.mode='menu'; playMusic('menu'); sfx('ok'); setScene(SCENES.titulo()); G.fade.a=1; G.fade.target=0; } }
   else if(G.mode==='credits') updateCredits();
   else if(G.mode==='clues') updateClues();
+  else if(G.mode==='chapters') updateChapters();
   if(AU.pending && AU.ctx){ const p=AU.pending; AU.pending=null; playMusic(p); }
   if(G.fade.target!==undefined && G.mode!=='game'){ G.fade.a+= (G.fade.target-G.fade.a)*Math.min(1,G.dt*3); }
   render(); updateControls();
@@ -1397,6 +1398,7 @@ function render(){
   if(G.mode==='endings') drawEndings(c);
   if(G.mode==='credits') drawCredits(c);
   if(G.mode==='clues') drawClues(c);
+  if(G.mode==='chapters') drawChapters(c);
 }
 function drawRewind(c,cam){
   const k=G.fx.rewind;
@@ -1489,20 +1491,21 @@ function drawBoot(c){ bands(c,0,0,W,H,['#05040e','#0a0818','#120e26']);
   if(Math.floor(G.t*2)%2===0) textC(c,'toque na tela ou pressione A / Enter',W/2,110,'#f3e9d2');
   textC(c,'o jogo abre em tela cheia  ·  F alterna',W/2,140,'#6a6088'); textC(c,'use fones de ouvido',W/2,154,'#6a6088'); }
 // ---------- MENU ----------
-function menuItems(){ const s=loadSave(); const it=[]; if(s&&s.chapter>0) it.push(['Continuar','cont']); it.push(['Novo jogo','new'],['Árvore de escolhas','hist'],['Finais','end'],['Música: '+(AU.on?'sim':'não'),'mus']); if(canFS()) it.push(['Tela cheia: '+(isFS()?'sim':'não'),'fs']); it.push(['Créditos','cred']); return it; }
+function menuItems(){ const s=loadSave(); const it=[]; if(s&&s.chapter>0) it.push(['Continuar','cont']); it.push(['Novo jogo','new'],['Escolher capítulo','chap'],['Árvore de escolhas','hist'],['Finais','end'],['Música: '+(AU.on?'sim':'não'),'mus']); if(canFS()) it.push(['Tela cheia: '+(isFS()?'sim':'não'),'fs']); it.push(['Créditos','cred']); return it; }
 function updateMenu(){ const it=menuItems(); G.st+=G.dt;
   if(Prep('up')){ G.menuSel=(G.menuSel+it.length-1)%it.length; sfx('move'); } if(Prep('down')){ G.menuSel=(G.menuSel+1)%it.length; sfx('move'); }
   G.menuSel=Math.min(G.menuSel,it.length-1);
   if(P('a')||G.menuTap){ G.menuTap=false; const k=it[G.menuSel][1]; sfx('ok');
     if(k==='new'){ startGame(0); } else if(k==='cont'){ const s=loadSave(); G.flags=s.flags; G.history=s.history||[]; startGame(s.chapter); }
     else if(k==='hist'){ if(!G.history.length){ const s=loadSave(); if(s) G.history=s.history||[]; } G.histFrom='menu'; G.mode='history'; G.histScroll=0; }
+    else if(k==='chap'){ G.mode='chapters'; G.chapSel=0; }
     else if(k==='end'){ G.mode='endings'; } else if(k==='mus'){ setMusicOn(!AU.on); } else if(k==='fs'){ G.fsPref=!isFS(); } else if(k==='cred'){ startCredits(false); } } }
 function logo(c,x,y){ const t1='VOLTA', t2='NO TEMPO';
   textC(c,t1,x+1,y+2,'#1a0e04',null,4); textC(c,t1,x,y,'#c98a2a',null,4); c.save(); c.beginPath(); c.rect(0,y-4,W,12); c.clip(); textC(c,t1,x,y,'#ffe7a0',null,4); c.restore();
   textC(c,t2,x+1,y+33,'#1a0e04',null,2); textC(c,t2,x,y+32,'#e8d8f0',null,2);
   R(c,x-70,y+30,40,1,'#c98a2a'); R(c,x+30,y+30,40,1,'#c98a2a'); }
 function drawMenu(c){ c.globalAlpha=0.25; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; logo(c,W/2,26);
-  const it=menuItems(); it.forEach(([l],i)=>{ const y=92+i*11; const sel=i===G.menuSel; G.hits.push({x:W/2-70,y:y-2,w:140,h:11,fn:()=>{ G.menuSel=i; G.menuTap=true; }}); if(sel){ R(c,W/2-60,y-2,120,11,'rgba(242,196,90,0.14)'); text(c,'►',W/2-56+Math.round(Math.sin(G.t*6)),y,'#f2c45a'); }
+  const it=menuItems(); it.forEach(([l],i)=>{ const y=84+i*10; const sel=i===G.menuSel; G.hits.push({x:W/2-70,y:y-2,w:140,h:10,fn:()=>{ G.menuSel=i; G.menuTap=true; }}); if(sel){ R(c,W/2-60,y-2,120,11,'rgba(242,196,90,0.14)'); text(c,'►',W/2-56+Math.round(Math.sin(G.t*6)),y,'#f2c45a'); }
     textC(c,l,W/2,y,sel?'#fff':'#a89ac0','#000'); });
   textC(c,'Desenvolvido por Felipe',W/2,H-11,'#6a6088'); }
 function startGame(ch){ G.token++; frameWaiters=[]; G.mode='game'; G.fade.target=undefined; G.fade.a=1; G.dialog=G.choice=G.prompt=G.caption=G.card=G.watchP=G.free=null; G.letterOn=false; G.letter=0; G.fx={rewind:0,glitch:0,blur:0,vig:0.35,heart:0,sat:null,tint:null,noise:0.04};
@@ -1554,6 +1557,18 @@ function updateCredits(){ G.st+=G.dt; G.credY-=G.dt*(HELD('a')?60:16); if(G.cred
 function drawCredits(c){ c.globalAlpha=0.6; R(c,0,0,W,H,'#03020a'); c.globalAlpha=1;
   CREDITS.forEach(([l,k],i)=>{ const y=Math.round(G.credY+i*14); if(y<-20||y>H+10) return; if(k==='t') textC(c,l,W/2,y,'#f2c45a','#2a1a08',2); else if(k==='b') textC(c,l,W/2,y,'#ffffff','#000',1); else if(k==='s') textC(c,l,W/2,y,'#a89ac0'); else if(k==='q') textC(c,l,W/2,y,'#f2d27a'); else textC(c,l,W/2,y,'#e8e0f0'); });
   if(G.ending){ R(c,0,0,W,14,'#03020a'); textC(c,'Final '+G.ending.k+' de 3: '+G.ending.n,W/2,4,'#f2c45a','#000'); } }
+
+// ---------- ESCOLHER CAPÍTULO ----------
+const CHAP_NAMES=['Prólogo · Todo dia (2016)','1 · O Anúncio','2 · Onde tudo era feliz (2005)','3 · Pulando as partes chatas','4 · A Final do Interclasse (futebol)','5 · Segredos da escola (diretor e Pedro)','6 · Três anos voando','7 · A vida que eu sempre quis','8 · A Tempestade','9 · Despedida','10 · Acordar'];
+function updateChapters(){ const n=CHAP_NAMES.length;
+  if(Prep('up')){ G.chapSel=(G.chapSel+n-1)%n; sfx('move'); } if(Prep('down')){ G.chapSel=(G.chapSel+1)%n; sfx('move'); }
+  if(P('b')){ G.mode='menu'; sfx('back'); return; }
+  if(P('a')||G.chapTap){ G.chapTap=false; sfx('ok'); const i=G.chapSel; startGame(0); if(i>0){ G.token++; frameWaiters=[]; G.flags.bond=i>=6?2:0; runStory(i).catch(e=>{ if(e!==ABORT) console.error(e); }); } } }
+function drawChapters(c){ c.globalAlpha=0.85; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; frameBox(c,24,6,272,168);
+  textC(c,'ESCOLHER CAPÍTULO',W/2,14,'#f2c45a','#000');
+  CHAP_NAMES.forEach((l,i)=>{ const y=30+i*12, sel=i===G.chapSel; G.hits.push({x:30,y:y-2,w:260,h:12,fn:()=>{ G.chapSel=i; G.chapTap=true; }});
+    if(sel){ R(c,30,y-2,260,11,'rgba(242,196,90,0.16)'); text(c,'►',34,y,'#f2c45a'); } text(c,l,46,y,sel?'#fff':'#a89ac0'); });
+  G.hits.push({x:0,y:H-14,w:W,h:14,fn:()=>{ LATCH.b=true; }}); textC(c,'B voltar',W/2,H-11,'#6a6088'); }
 // ================= ENGINE 2: toque, controles contextuais, mini-jogos, puzzles =================
 G.hits=[]; G.flags.clues=G.flags.clues||[];
 function canvasPt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width*W, y:(e.clientY-r.top)/r.height*H}; }
