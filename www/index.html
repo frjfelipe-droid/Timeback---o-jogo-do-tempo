@@ -1174,17 +1174,18 @@ const ABORT = {abort:true};
 const IN = { held:{}, prev:{}, rep:{} };
 const BTN=['up','down','left','right','a','b','y','start'];
 const KEYMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',
-  KeyZ:'a',Enter:'a',Space:'a',KeyX:'b',Escape:'b',Backspace:'b',KeyC:'y',KeyR:'y',KeyP:'start',Tab:'start',KeyH:'start'};
+  KeyE:'a',Enter:'a',NumpadEnter:'a',Space:'y',Escape:['b','start'],Backspace:'b'};
+G.input = (('ontouchstart' in window)||navigator.maxTouchPoints>0) && !matchMedia('(pointer:fine)').matches ? 'touch' : 'kb';
 const KB={}, TOUCH={}, LATCH={};
-addEventListener('keydown',e=>{ const b=KEYMAP[e.code]; if(b){ KB[b]=true; if(!e.repeat) LATCH[b]=true; e.preventDefault(); } audioInit(); });
-addEventListener('keyup',e=>{ const b=KEYMAP[e.code]; if(b) KB[b]=false; });
+addEventListener('keydown',e=>{ G.input='kb'; const bs=KEYMAP[e.code]; if(bs){ [].concat(bs).forEach(b=>{ KB[b]=true; if(!e.repeat) LATCH[b]=true; }); e.preventDefault(); } audioInit(); });
+addEventListener('keyup',e=>{ const bs=KEYMAP[e.code]; if(bs) [].concat(bs).forEach(b=>KB[b]=false); });
 function pollInput(){
   const gp={}; try{ const pads=navigator.getGamepads?navigator.getGamepads():[]; for(const p of pads){ if(!p) continue;
     const ax=p.axes[0]||0, ay=p.axes[1]||0, b=i=>p.buttons[i]&&p.buttons[i].pressed;
     if(ax<-0.45||b(14)) gp.left=true; if(ax>0.45||b(15)) gp.right=true; if(ay<-0.45||b(12)) gp.up=true; if(ay>0.45||b(13)) gp.down=true;
     if(b(0)) gp.a=true; if(b(1)) gp.b=true; if(b(3)||b(2)) gp.y=true; if(b(9)||b(8)) gp.start=true; } }catch(e){}
   for(const k of BTN){ IN.prev[k]=IN.held[k]; IN.held[k]=!!(KB[k]||gp[k]||TOUCH[k]||LATCH[k]); LATCH[k]=false; }
-  if(Object.values(gp).some(Boolean)) audioInit();
+  if(Object.values(gp).some(Boolean)){ audioInit(); G.input='pad'; }
 }
 const P=b=>IN.held[b]&&!IN.prev[b];
 const HELD=b=>!!IN.held[b];
@@ -1279,7 +1280,7 @@ async function choice(q,opts,o={}){
   G.choice=null;
   const isSil = silence && pick===list.length-1;
   if(!o.nohist){ G.history.push({cap:G.capName||'',q,opts:opts.slice(),pick:isSil?-1:pick,id:o.id||''});
-  G.toast=3; G.toastTxt= isSil?'silêncio registrado':'escolha registrada'; G.toastSub='START: ver árvore'; }
+  G.toast=3; G.toastTxt= isSil?'silêncio registrado':'escolha registrada'; G.toastSub=K('pause')+': ver árvore'; }
   if(isSil){ G.flags.silence++; await say('Lucas','...',{auto:0.9}); return -1; }
   return pick;
 }
@@ -1334,6 +1335,7 @@ function loop(now){
   else if(G.mode==='credits') updateCredits();
   else if(G.mode==='clues') updateClues();
   else if(G.mode==='chapters') updateChapters();
+  else if(G.mode==='controls') updateControlsScreen();
   if(AU.pending && AU.ctx){ const p=AU.pending; AU.pending=null; playMusic(p); }
   if(G.fade.target!==undefined && G.mode!=='game'){ G.fade.a+= (G.fade.target-G.fade.a)*Math.min(1,G.dt*3); }
   render(); updateControls();
@@ -1429,6 +1431,7 @@ function render(){
   if(G.mode==='credits') drawCredits(c);
   if(G.mode==='clues') drawClues(c);
   if(G.mode==='chapters') drawChapters(c);
+  if(G.mode==='controls') drawControlsScreen(c);
 }
 function drawRewind(c,cam){
   const k=G.fx.rewind;
@@ -1461,27 +1464,26 @@ function frameBox(c,x,y,w,h,o={}){
 function aBtn(c,x,y,l='A',col='#d0604e'){ circ(c,x+3,y+3,4,'#1a1020'); circ(c,x+3,y+3,3,col); text(c,l,x+2-(l==='⌚'?1:0),y+1,'#fff'); }
 function drawUI(c){
   // prompt de interação
-  if(G.prompt && G.mode==='game'){ const a=actor('lucas'); const px=Math.round(G.prompt.x-G.cam), py=G.prompt.y??(a?a.y-46:100); const w=textW(G.prompt.label)+18;
+  if(G.prompt && G.mode==='game'){ const a=actor('lucas'); const px=Math.round(G.prompt.x-G.cam), py=G.prompt.y??(a?a.y-46:100); const kw=(G.input==='kb'?textW(K('act'))+6:10); const w=textW(G.prompt.label)+kw+10;
     const bx=Math.max(2,Math.min(W-w-2,px-w/2)), by=py+Math.round(Math.sin(G.t*4));
-    frameBox(c,bx,by,w,13,{plain:true}); aBtn(c,bx+3,by+3); text(c,G.prompt.label,bx+14,by+3,'#f3e9d2'); R(c,px-1,by+13,3,1,'#e6d6a8'); R(c,px,by+14,1,1,'#e6d6a8'); }
+    frameBox(c,bx,by,w,13,{plain:true}); keycap(c,bx+3,by+2,K('act')); text(c,G.prompt.label,bx+kw+7,by+3,'#f3e9d2'); R(c,px-1,by+13,3,1,'#e6d6a8'); R(c,px,by+14,1,1,'#e6d6a8'); }
   // caption
   if(G.caption){ const cp=G.caption; cp.t+=G.dt; const a=Math.min(1,cp.t*2,(cp.dur-cp.t)*2); c.globalAlpha=Math.max(0,a);
-    const lines=wrap(cp.txt,280); lines.forEach((l,i)=>{ const sc=cp.big?2:1; textC(c,l,W/2,(cp.big?H/2-10:H-14-lines.length*11)+i*11*sc,cp.col||'#f3e9d2','#000',sc); }); c.globalAlpha=1; }
+    const lines=wrap(cp.txt,280); const top=(G.dialog?60:(G.watchP?36:24)); lines.forEach((l,i)=>{ const sc=cp.big?2:1; if(!cp.big){ const tw=textW(l); R(c,W/2-tw/2-4,top+i*11-2,tw+8,11,'rgba(6,4,14,0.55)'); } textC(c,l,W/2,(cp.big?H/2-30:top)+i*11*sc,cp.col||'#f3e9d2','#000',sc); }); c.globalAlpha=1; }
   // diálogo
-  if(G.dialog){ const d=G.dialog; const hasP=!!PORTRAIT[d.who] && !d.thought; const bx=6, by=H-50, bw=308, bh=44;
-    frameBox(c,bx,by,bw,bh,d.thought?{fill:'rgba(10,16,34,0.9)',b1:'#9ab8e0',b2:'#2a3a5a',dashed:true,plain:true}:{});
-    if(hasP) drawPortrait(c,bx+8,by-20,d.who,d.expr,G.t,!d.done);
-    if(d.who){ const nm = d.thought? d.who+' (pensando)': d.who; const col = PORTRAIT[d.who]?PORTRAIT[d.who].col:'#e6d6a8'; const nx=hasP?bx+48:bx+8, nw=textW(nm)+10;
-      R(c,nx,by-6,nw,10,'#0e0b1a'); R(c,nx+1,by-5,nw-2,8,shade(col,-0.6)); R(c,nx+1,by-5,nw-2,1,col); text(c,nm,nx+5,by-4,col);
-      if(d.thought){ circ(c,nx+nw+5,by-4,2,'#9ab8e0'); circ(c,nx+nw+10,by-8,1,'#9ab8e0'); } }
-    let left=d.shown|0; const tx=hasP?bx+48:bx+10;
-    d.lines.forEach((l,i)=>{ if(left<=0) return; const s=l.slice(0,left); left-=l.length+1; text(c,s,tx,by+9+i*11, d.thought?'#c8daf2':'#f3e9d2','#00000090'); });
-    if(d.done && Math.floor(G.t*3)%2===0) text(c,'▼',bx+bw-12,by+bh-10,'#f2c45a');
+  if(G.dialog){ const d=G.dialog; const hasP=!!PORTRAIT[d.who] && !d.thought; const bx=6, by=4, bw=308, bh=50;
+    frameBox(c,bx,by,bw,bh,d.thought?{fill:'rgba(10,16,34,0.92)',b1:'#9ab8e0',b2:'#2a3a5a',dashed:true,plain:true}:{});
+    if(hasP) drawPortrait(c,bx+8,by+9,d.who,d.expr,G.t,!d.done);
+    const tx=hasP?bx+48:bx+10;
+    if(d.who){ const nm = d.thought? d.who+' (pensando)': d.who; const col = PORTRAIT[d.who]?PORTRAIT[d.who].col:'#e6d6a8'; text(c,nm,tx,by+5,col,'#000'); if(d.thought){ circ(c,tx+textW(nm)+5,by+8,1,'#9ab8e0'); circ(c,tx+textW(nm)+9,by+6,1,'#9ab8e0'); } }
+    let left=d.shown|0; const ty=d.who?by+16:by+9;
+    d.lines.forEach((l,i)=>{ if(left<=0||i>2) return; const s2=l.slice(0,left); left-=l.length+1; text(c,s2,tx,ty+i*11, d.thought?'#c8daf2':'#f3e9d2','#00000090'); });
+    if(d.done){ const kl=K('act'); if(Math.floor(G.t*3)%2===0) text(c,'▼',bx+bw-12,by+bh-10,'#f2c45a'); if(G.input==='kb'){ const kw=textW(kl)+6; keycap(c,bx+bw-16-kw,by+bh-12,kl); } }
   }
   // escolhas
-  if(G.choice){ const ch=G.choice; const n=ch.opts.length, MR=8, rows=Math.min(n,MR); const st=Math.max(0,Math.min(n-rows,ch.sel-3));
+  if(G.choice){ const ch=G.choice; const n=ch.opts.length, MR=6, rows=Math.min(n,MR); const st=Math.max(0,Math.min(n-rows,ch.sel-2));
     const widths=ch.opts.map(o=>textW(o)); const w=Math.min(304,Math.max(...widths,textW(ch.q))+30); const h=rows*13+22;
-    const x=W-w-8, y=Math.max(4,H-56-h); const ap=Math.min(1,ch.t*5);
+    const x=W-w-6, y=4; const ap=Math.min(1,ch.t*5);
     c.globalAlpha=ap; frameBox(c,x,y,w,h,{fill:'rgba(20,12,30,0.95)'});
     text(c,ch.q,x+10,y+6,'#f2c45a','#000');
     for(let r=0;r<rows;r++){ const i=st+r, o=ch.opts[i]; const sel=i===ch.sel; const oy=y+19+r*13; const isSil=ch.silence&&i===n-1;
@@ -1496,14 +1498,14 @@ function drawUI(c){
       circ(c,x+w-8,y+6,4,'#2a1e3a'); ring(c,x+w-8,y+6,4,'#f2c45a'); line(c,x+w-8,y+6,x+w-8+Math.round(Math.sin(ch.t*4)*3),y+6-Math.round(Math.cos(ch.t*4)*3),'#fff'); }
     c.globalAlpha=1; }
   // relógio: segurar
-  if(G.watchP){ const w=G.watchP; const x=W-112, y=8; const pulse=Math.sin(G.t*5)>0; G.hits.push({x,y,w:104,h:22,hold:'y'});
+  if(G.watchP){ const w=G.watchP; const x=W-112, y=G.dialog?58:8; const pulse=Math.sin(G.t*5)>0; G.hits.push({x,y,w:104,h:22,hold:'y'});
     frameBox(c,x,y,104,22,{plain:true,fill:'rgba(30,20,10,0.9)',b1:'#f2c45a'});
     circ(c,x+12,y+11,7,'#3a2a10'); circ(c,x+12,y+11,6,pulse?'#f2d27a':'#e0b050'); circ(c,x+12,y+11,4,'#fff6e0'); line(c,x+12,y+11,x+12,y+8,'#333'); line(c,x+12,y+11,x+14,y+12,'#a33');
     const k=Math.min(1,w.hold/1.1); for(let a=0;a<k*Math.PI*2;a+=0.12) R(c,x+12+Math.round(Math.sin(a)*9),y+11-Math.round(Math.cos(a)*9),1,1,'#fff3a0');
-    text(c,'Segure',x+24,y+4,'#f3e9d2'); aBtn(c,x+54,y+2,'Y','#c99a3a');
+    text(c,'Segure',x+24,y+4,'#f3e9d2'); keycap(c,x+56,y+2,K('time'),'#c99a3a');
     text(c, w.hint.slice(0,17), x+24,y+13,'#f2d27a'); }
   // árvore de escolha (toast)
-  if(G.toast>0 && G.mode==='game'){ const a=Math.min(1,G.toast*2,(3-G.toast)*4); c.globalAlpha=a; const x=8,y=G.mini?140:8;
+  if(G.toast>0 && G.mode==='game'){ const a=Math.min(1,G.toast*2,(3-G.toast)*4); c.globalAlpha=a; const x=8,y=G.mini?24:(G.dialog||G.choice?58:8);
     frameBox(c,x,y,122,30,{plain:true,fill:'rgba(10,20,14,0.88)',b1:'#8ad08a',b2:'#2a4a2a'});
     const n=Math.min(G.history.length,8); R(c,x+12,y+8,1,18,'#8a6a4a');
     for(let i=0;i<n;i++){ const by=y+24-i*2.2, dir=i%2?1:-1, grow=i===n-1?Math.min(1,(3-G.toast)*1.5):1; const L=Math.round(6*grow); line(c,x+12,by,x+12+dir*L,by-3,'#8a6a4a'); R(c,x+12+dir*L-1,by-4,2,2, G.history[G.history.length-n+i]?.pick===-1?'#b090e0':'#6ad06a'); }
@@ -1518,10 +1520,10 @@ function drawCard(c){ const cd=G.card; cd.t+=G.dt; const a=Math.min(1,cd.t*1.5,(
   c.globalAlpha=1; }
 function drawBoot(c){ bands(c,0,0,W,H,['#05040e','#0a0818','#120e26']);
   textC(c,'VOLTA NO TEMPO',W/2,60,'#f2c45a','#2a1a08',2);
-  if(Math.floor(G.t*2)%2===0) textC(c,'toque na tela ou pressione A / Enter',W/2,110,'#f3e9d2');
+  if(Math.floor(G.t*2)%2===0) textC(c,G.input==='touch'?'toque na tela para começar':'pressione E ou Enter para começar',W/2,96,'#f3e9d2'); if(G.input!=='touch') drawControlsMini(c,112);
   textC(c,'o jogo abre em tela cheia  ·  F alterna',W/2,140,'#6a6088'); textC(c,'use fones de ouvido',W/2,154,'#6a6088'); }
 // ---------- MENU ----------
-function menuItems(){ const s=loadSave(); const it=[]; if(s&&s.chapter>0) it.push(['Continuar','cont']); it.push(['Novo jogo','new'],['Escolher capítulo','chap'],['Árvore de escolhas','hist'],['Finais','end'],['Música: '+(AU.on?'sim':'não'),'mus'],['Vibração: '+(G.vib?'sim':'não'),'vib']); if(canFS()) it.push(['Tela cheia: '+(isFS()?'sim':'não'),'fs']); it.push(['Créditos','cred']); return it; }
+function menuItems(){ const s=loadSave(); const it=[]; if(s&&s.chapter>0) it.push(['Continuar','cont']); it.push(['Novo jogo','new'],['Escolher capítulo','chap'],['Árvore de escolhas','hist'],['Finais','end'],['Música: '+(AU.on?'sim':'não'),'mus'],['Vibração: '+(G.vib?'sim':'não'),'vib'],['Controles','ctrl']); if(canFS()) it.push(['Tela cheia: '+(isFS()?'sim':'não'),'fs']); it.push(['Créditos','cred']); return it; }
 function updateMenu(){ const it=menuItems(); G.st+=G.dt;
   if(Prep('up')){ G.menuSel=(G.menuSel+it.length-1)%it.length; sfx('move'); } if(Prep('down')){ G.menuSel=(G.menuSel+1)%it.length; sfx('move'); }
   G.menuSel=Math.min(G.menuSel,it.length-1);
@@ -1529,13 +1531,13 @@ function updateMenu(){ const it=menuItems(); G.st+=G.dt;
     if(k==='new'){ startGame(0); } else if(k==='cont'){ const s=loadSave(); G.flags=s.flags; G.history=s.history||[]; startGame(s.chapter); }
     else if(k==='hist'){ if(!G.history.length){ const s=loadSave(); if(s) G.history=s.history||[]; } G.histFrom='menu'; G.mode='history'; G.histScroll=0; }
     else if(k==='chap'){ G.mode='chapters'; G.chapSel=0; }
-    else if(k==='end'){ G.mode='endings'; } else if(k==='mus'){ setMusicOn(!AU.on); } else if(k==='vib'){ setVib(!G.vib); } else if(k==='fs'){ G.fsPref=!isFS(); } else if(k==='cred'){ startCredits(false); } } }
+    else if(k==='end'){ G.mode='endings'; } else if(k==='mus'){ setMusicOn(!AU.on); } else if(k==='vib'){ setVib(!G.vib); } else if(k==='ctrl'){ G.ctrlFrom='menu'; G.mode='controls'; } else if(k==='fs'){ G.fsPref=!isFS(); } else if(k==='cred'){ startCredits(false); } } }
 function logo(c,x,y){ const t1='VOLTA', t2='NO TEMPO';
   textC(c,t1,x+1,y+2,'#1a0e04',null,4); textC(c,t1,x,y,'#c98a2a',null,4); c.save(); c.beginPath(); c.rect(0,y-4,W,12); c.clip(); textC(c,t1,x,y,'#ffe7a0',null,4); c.restore();
   textC(c,t2,x+1,y+33,'#1a0e04',null,2); textC(c,t2,x,y+32,'#e8d8f0',null,2);
   R(c,x-70,y+30,40,1,'#c98a2a'); R(c,x+30,y+30,40,1,'#c98a2a'); }
 function drawMenu(c){ c.globalAlpha=0.25; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; logo(c,W/2,26);
-  const it=menuItems(); it.forEach(([l],i)=>{ const y=80+i*10; const sel=i===G.menuSel; G.hits.push({x:W/2-70,y:y-2,w:140,h:10,fn:()=>{ G.menuSel=i; G.menuTap=true; }}); if(sel){ R(c,W/2-60,y-2,120,11,'rgba(242,196,90,0.14)'); text(c,'►',W/2-56+Math.round(Math.sin(G.t*6)),y,'#f2c45a'); }
+  const it=menuItems(); it.forEach(([l],i)=>{ const y=74+i*10; const sel=i===G.menuSel; G.hits.push({x:W/2-70,y:y-2,w:140,h:10,fn:()=>{ G.menuSel=i; G.menuTap=true; }}); if(sel){ R(c,W/2-60,y-2,120,11,'rgba(242,196,90,0.14)'); text(c,'►',W/2-56+Math.round(Math.sin(G.t*6)),y,'#f2c45a'); }
     textC(c,l,W/2,y,sel?'#fff':'#a89ac0','#000'); });
   textC(c,'Desenvolvido por Felipe',W/2,H-11,'#6a6088'); }
 function startGame(ch){ G.token++; frameWaiters=[]; G.mode='game'; G.fade.target=undefined; G.fade.a=1; G.dialog=G.choice=G.prompt=G.caption=G.card=G.watchP=G.free=null; G.letterOn=false; G.letter=0; G.fx={rewind:0,glitch:0,blur:0,vig:0.35,heart:0,sat:null,tint:null,noise:0.04};
@@ -1544,16 +1546,16 @@ function startGame(ch){ G.token++; frameWaiters=[]; G.mode='game'; G.fade.target
 function toMenu(){ G.token++; frameWaiters=[]; G.mode='menu'; G.menuSel=0; G.fx={rewind:0,glitch:0,blur:0,vig:0.35,heart:0,sat:null,tint:null,noise:0.04}; G.overlay=null; G.letterOn=false; G.letter=0;
   G.dialog=G.choice=G.prompt=G.caption=G.card=G.watchP=G.free=null; setScene(SCENES.titulo()); G.fade.a=1; G.fade.target=0; playMusic('menu'); if(AU.ctx){ambRain(0);ambHum(0);} }
 // ---------- PAUSA ----------
-function pauseItems(){ return ['Continuar','Árvore de escolhas','Caderno de pistas','Música: '+(AU.on?'sim':'não'),'Vibração: '+(G.vib?'sim':'não'),'Tela cheia: '+(isFS()?'sim':'não'),'Menu principal']; }
+function pauseItems(){ return ['Continuar','Controles','Árvore de escolhas','Caderno de pistas','Música: '+(AU.on?'sim':'não'),'Vibração: '+(G.vib?'sim':'não'),'Tela cheia: '+(isFS()?'sim':'não'),'Menu principal']; }
 function updatePause(){ const it=pauseItems(), n=it.length;
   if(P('b')||P('start')){ G.mode='game'; sfx('back'); return; }
   if(Prep('up')){ G.pauseSel=(G.pauseSel+n-1)%n; sfx('move'); } if(Prep('down')){ G.pauseSel=(G.pauseSel+1)%n; sfx('move'); }
   if(P('b')||P('start')){ G.mode='game'; sfx('back'); return; }
-  if(P('a')||G.pauseTap2){ G.pauseTap2=false; sfx('ok'); const s=G.pauseSel; if(s===0) G.mode='game'; else if(s===1){ G.histFrom='pause'; G.mode='history'; G.histScroll=0; } else if(s===2){ G.mode='clues'; G.histScroll=0; } else if(s===3) setMusicOn(!AU.on); else if(s===4) setVib(!G.vib); else if(s===5) G.fsPref=!isFS(); else toMenu(); } }
-function drawPause(c){ c.globalAlpha=0.7; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; frameBox(c,W/2-70,24,140,126);
-  textC(c,'PAUSA',W/2,32,'#f2c45a','#000',1); const it=pauseItems();
-  it.forEach((l,i)=>{ const y=48+i*13, sel=i===G.pauseSel; G.hits.push({x:W/2-66,y:y-3,w:132,h:13,fn:()=>{ G.pauseSel=i; G.pauseTap2=true; }}); if(sel) text(c,'►',W/2-58,y,'#f2c45a'); textC(c,l,W/2,y,sel?'#fff':'#a89ac0'); });
-  textC(c,G.capName||'',W/2,156,'#6a6088'); }
+  if(P('a')||G.pauseTap2){ G.pauseTap2=false; sfx('ok'); const s=G.pauseSel; if(s===0) G.mode='game'; else if(s===1){ G.ctrlFrom='pause'; G.mode='controls'; } else if(s===2){ G.histFrom='pause'; G.mode='history'; G.histScroll=0; } else if(s===3){ G.mode='clues'; G.histScroll=0; } else if(s===4) setMusicOn(!AU.on); else if(s===5) setVib(!G.vib); else if(s===6) G.fsPref=!isFS(); else toMenu(); } }
+function drawPause(c){ c.globalAlpha=0.7; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; frameBox(c,W/2-70,18,140,138);
+  textC(c,'PAUSA',W/2,25,'#f2c45a','#000',1); const it=pauseItems();
+  it.forEach((l,i)=>{ const y=40+i*13, sel=i===G.pauseSel; G.hits.push({x:W/2-66,y:y-3,w:132,h:13,fn:()=>{ G.pauseSel=i; G.pauseTap2=true; }}); if(sel) text(c,'►',W/2-58,y,'#f2c45a'); textC(c,l,W/2,y,sel?'#fff':'#a89ac0'); });
+  textC(c,G.capName||'',W/2,162,'#6a6088'); }
 // ---------- HISTÓRICO / ÁRVORE ----------
 function histLayout(){ const rows=[]; let y=0; G.history.forEach((h,i)=>{ const qL=wrap(h.q,220); rows.push({h,i,y,qL}); y+=12+qL.length*10+ (h.opts.length+1)*10+6; }); return {rows,total:y}; }
 function updateHistory(){ const {total}=histLayout(); if(HELD('down')) G.histScroll=Math.min(Math.max(0,total-120),G.histScroll+G.dt*90); if(HELD('up')) G.histScroll=Math.max(0,G.histScroll-G.dt*90);
@@ -1599,13 +1601,30 @@ function drawChapters(c){ c.globalAlpha=0.85; R(c,0,0,W,H,'#05040c'); c.globalAl
   CHAP_NAMES.forEach((l,i)=>{ const y=30+i*12, sel=i===G.chapSel; G.hits.push({x:30,y:y-2,w:260,h:12,fn:()=>{ G.chapSel=i; G.chapTap=true; }});
     if(sel){ R(c,30,y-2,260,11,'rgba(242,196,90,0.16)'); text(c,'►',34,y,'#f2c45a'); } text(c,l,46,y,sel?'#fff':'#a89ac0'); });
   G.hits.push({x:0,y:H-14,w:W,h:14,fn:()=>{ LATCH.b=true; }}); textC(c,'B voltar',W/2,H-11,'#6a6088'); }
+
+// ---------- CONTROLES ----------
+const CTRL_ROWS=[['move','Andar / escolher'],['act','Interagir · avançar texto'],['time','Voltar no tempo (segure)'],['pause','Pausa · voltar']];
+function drawControlsMini(c,y){ const items=[['Setas','andar'],['E','interagir'],['Espaço','tempo'],['Esc','pausa']]; let tw=0; items.forEach(([k,l])=>tw+=textW(k)+6+textW(l)+14); let x=W/2-tw/2;
+  items.forEach(([k,l])=>{ const w=keycap(c,x,y,k); text(c,l,x+w+4,y+1,'#b8aac8'); x+=w+4+textW(l)+10; }); }
+function updateControlsScreen(){ if(P('a')||P('b')||P('start')){ sfx('back'); G.mode=G.ctrlFrom==='pause'?'pause':'menu'; } }
+function drawControlsScreen(c){ c.globalAlpha=0.85; R(c,0,0,W,H,'#05040c'); c.globalAlpha=1; frameBox(c,20,14,280,150);
+  textC(c,'CONTROLES',W/2,22,'#f2c45a','#000');
+  const dev = G.input==='pad'?'Controle':G.input==='touch'?'Tela de toque':'Teclado';
+  textC(c,dev,W/2,34,'#8a80a8');
+  CTRL_ROWS.forEach(([a,l],i)=>{ const y=50+i*18; const lab = G.input==='kb'? {move:'Setas / WASD',act:'E  (ou Enter)',time:'Espaço',pause:'Esc'}[a] : K(a);
+    if(G.input==='kb'){ let x=40; lab.split('  ')[0].split(' / ').forEach((k,j)=>{ if(j){ text(c,'/',x,y+1,'#6a6088'); x+=8; } x+=keycap(c,x,y,k)+3; }); if(a==='act'){ text(c,'ou',x+2,y+1,'#6a6088'); keycap(c,x+14,y,'Enter'); } }
+    else keycap(c,40,y,lab);
+    text(c,l,130,y+1,'#e8e0f0'); });
+  text(c,'Futebol:',40,128,'#f2c45a'); text(c,'E chuta perto do gol e passa longe dele.',84,128,'#b8aac8'); text(c,'Sem a bola, E tenta roubar.',84,138,'#b8aac8');
+  textC(c,'Mouse: clique para avançar e escolher',W/2,150,'#6a6088');
+  G.hits.push({x:0,y:0,w:W,h:H,fn:()=>{ LATCH.b=true; }}); }
 // ================= ENGINE 2: toque, controles contextuais, mini-jogos, puzzles =================
 G.hits=[]; G.flags.clues=G.flags.clues||[];
 function canvasPt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width*W, y:(e.clientY-r.top)/r.height*H}; }
 function hitAt(p){ for(let i=G.hits.length-1;i>=0;i--){ const h=G.hits[i]; if(p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h) return h; } return null; }
 let holdTouch=null, dragY=null;
 function canvasPress(e,id){
-  audioInit(); const p=canvasPt(e);
+  audioInit(); if(e.touches!==undefined||id!=='m') G.input=(id==='m'?G.input:'touch'); const p=canvasPt(e);
   if(G.mode==='history'||G.mode==='clues'){ dragY={id,y:p.y,moved:0}; return; }
   const h=hitAt(p);
   if(h){ if(h.hold){ TOUCH[h.hold]=true; holdTouch={id,b:h.hold}; } else h.fn(p); return; }
@@ -1645,9 +1664,9 @@ async function mash(label,need,time){
     q.n=Math.max(0,q.n-G.dt*0.8);
     if(q.n>=need){ G.qte=null; sfx('ok'); return true; } if(q.t>=time){ G.qte=null; return false; } }
 }
-function drawQTE(c){ const q=G.qte; if(!q) return; const x=60,y=66,w=200,h=40; frameBox(c,x,y,w,h,{fill:'rgba(30,8,12,0.94)',b1:'#ff8a6a'});
+function drawQTE(c){ const q=G.qte; if(!q) return; const x=60,y=6,w=200,h=44; frameBox(c,x,y,w,h,{fill:'rgba(30,8,12,0.94)',b1:'#ff8a6a'});
   textC(c,q.label,W/2,y+6,'#ffd0c0','#000'); const k=Math.min(1,q.n/q.need); R(c,x+10,y+19,w-20,6,'#2a1010'); R(c,x+10,y+19,Math.round((w-20)*k),6,k>0.7?'#8aff8a':'#ff6a4a');
-  const tl=1-q.t/q.time; R(c,x+10,y+28,Math.round((w-20)*tl),2,'#f2c45a'); aBtn(c,W/2-4,y+31-0,'A'); G.hits.push({x:0,y:0,w:W,h:H,fn:()=>{ LATCH.a=true; }}); }
+  const tl=1-q.t/q.time; R(c,x+10,y+28,Math.round((w-20)*tl),2,'#f2c45a'); keycap(c,W/2-6,y+31,K('act')); G.hits.push({x:0,y:0,w:W,h:H,fn:()=>{ LATCH.a=true; }}); }
 // ---- escolher número (puzzle do relógio) ----
 async function pickNumber(o){
   G.pick={...o,val:o.start,ok:false};
@@ -1690,6 +1709,16 @@ const HAPTIC={ok:10,back:8,move:4,alarm:[60,80,60,80,60],ping:15,error:[30,40,30
   coin:15,sparkle:10,rewind:[15,30,15,30,15,30,40],whoosh:[20,40,60],glitch:[10,20,10,20,10],car:40,trash:20,cough:[20,60,20],chime:12};
 function hapticFor(name,p){ if(name==='step'){ if(p>2) haptic(12); return; } const h=HAPTIC[name]; if(h) haptic(h); }
 let lastShake=0; setInterval(()=>{ if(G.shake>lastShake+0.15) haptic(Math.round(30+G.shake*70)); lastShake=G.shake; },50);
+
+// ---- rótulos dos controles conforme o dispositivo ----
+function K(a){ const d=G.input;
+  const T={kb:{act:'E',time:'Espaço',move:'Setas',pause:'Esc',back:'Esc'},pad:{act:'A',time:'Y',move:'Direcional',pause:'Start',back:'B'},touch:{act:'Toque',time:'⌚',move:'Joystick',pause:'II',back:'Voltar'}};
+  return (T[d]||T.kb)[a]; }
+function keycap(c,x,y,label,col){ // desenha uma tecla/botão; devolve a largura
+  const d=G.input; if(d==='pad'||(d==='touch'&&label!=='Toque')){ const cc=col||(label==='Y'||label==='⌚'?'#c99a3a':'#d0604e'); circ(c,x+4,y+4,5,'#1a1020'); circ(c,x+4,y+4,4,cc); textC(c,label==='⌚'?'Y':label,x+4,y+2,'#fff'); return 10; }
+  const w=textW(label)+6; R(c,x,y,w,10,'#0e0b16'); R(c,x+1,y,w-2,9,'#e8e0d0'); R(c,x+1,y+8,w-2,1,'#9a92a8'); text(c,label,x+3,y+1,'#2a2236'); return w; }
+
+let lastMouse=0; addEventListener('mousemove',()=>{ lastMouse=performance.now(); cv.style.cursor='default'; }); setInterval(()=>{ if(G.mode==='game' && performance.now()-lastMouse>2000) cv.style.cursor='none'; },500);
 // ================= FUTSAL: FINAL DO INTERCLASSE =================
 function makeMatch(){
   const M={ w:600, top:66, bot:170, gy:118, gh:22, t:0, half:1, clock:0, score:[0,0], state:'ready', stT:0, msg:'APITO INICIAL', rewinds:3,
@@ -1754,7 +1783,7 @@ function makeMatch(){
     const L=M.lucas, b=M.ball; let ix=0,iy=0; if(HELD('left')) ix--; if(HELD('right')) ix++; if(HELD('up')) iy--; if(HELD('down')) iy++;
     const sp=L.speed*(L.dash>0?1.5:1)*(b.owner===L?0.8:1); const n=Math.hypot(ix,iy)||1; L.vx=ix/n*sp; L.vy=iy/n*sp; if(ix) L.facing=ix; L.dash=Math.max(0,(L.dash||0)-dt);
     L.tcd=Math.max(0,(L.tcd||0)-dt);
-    if(P('a')){ if(b.owner===L) shoot(L); else if(L.tcd<=0){ L.dash=0.3; L.tcd=0.9; const own=b.owner; if(own&&own.team===1&&Math.hypot(own.x-L.x,own.y-L.y)<14 && Math.random()<0.42){ b.owner=L; own.cd=0.8; sfx('ok'); } else if(own&&own.team===1){ L.cd=0.5; } } }
+    if(P('a')){ if(b.owner===L){ const m=nearestMate(L,true); const ahead=m&&(m.x-L.x)>30; if(L.x>360||!ahead) shoot(L); else pass(L,m); } else if(L.tcd<=0){ L.dash=0.3; L.tcd=0.9; const own=b.owner; if(own&&own.team===1&&Math.hypot(own.x-L.x,own.y-L.y)<14 && Math.random()<0.42){ b.owner=L; own.cd=0.8; sfx('ok'); } else if(own&&own.team===1){ L.cd=0.5; } } }
     if(P('b')){ if(b.owner===L){ const m=nearestMate(L,true); if(m) pass(L,m); } else if(b.owner&&b.owner.team===0&&!b.owner.ctrl){ pass(b.owner,L); } }
     for(const p of M.players){ if(!p.ctrl) ai(p,dt); p.cd=Math.max(0,p.cd-dt);
       p.x=Math.max(10,Math.min(590,p.x+p.vx*dt)); p.y=Math.max(M.top,Math.min(M.bot,p.y+p.vy*dt)); if(Math.abs(p.vx)>3) p.facing=Math.sign(p.vx); p.t+=dt; }
@@ -1807,11 +1836,14 @@ function makeMatch(){
     R(c,W/2-56,7,6,6,'#d84a3c'); text(c,'8ªB',W/2-47,7,'#fff'); textC(c,M.score[0]+' x '+M.score[1],W/2,7,'#f2c45a'); text(c,'8ªA',W/2+24,7,'#fff'); R(c,W/2+44,7,6,6,'#3a6ad0');
     frameBox(c,4,2,38,18,{plain:true,fill:'rgba(10,8,18,0.92)'}); text(c,Math.floor(M.clock)+"'",10,7,'#e8e0f0'); text(c,M.half+'T',28,7,'#8a80a8');
     frameBox(c,W-48,2,44,18,{plain:true,fill:'rgba(30,20,10,0.92)',b1:'#f2c45a'}); circ(c,W-38,11,5,'#e0b050'); circ(c,W-38,11,3,'#fff6e0'); line(c,W-38,11,W-38,9,'#333'); text(c,'x'+M.rewinds,W-29,7,M.rewinds?'#f2d27a':'#7a6a5a');
-    if(M.msg && (M.state!=='play' || M.t-M.msgT<1.2)){ const big=M.state==='goal'||M.state==='half'||M.state==='end'; textC(c,M.msg,W/2,big?70:28,M.msg.startsWith('GOO')?'#ffe060':'#ffffff','#000',big?3:1); }
-    if(M.state==='prompt'){ const pr=M.prompt; frameBox(c,W/2-90,58,180,44,{fill:'rgba(30,20,10,0.94)',b1:'#f2c45a'});
-      textC(c,pr.kind==='goal'?'Eles marcaram!':'Você errou!',W/2,64,'#ffd0a0','#000'); textC(c,'Segure Y para voltar no tempo',W/2,76,'#f2d27a'); const k=Math.min(1,pr.hold/0.8); R(c,W/2-70,90,140,4,'#2a1a10'); R(c,W/2-70,90,Math.round(140*k),4,'#f2c45a'); R(c,W/2-70,96,Math.round(140*(1-pr.t/3.2)),1,'#c87a4a');
-      G.hits.push({x:W/2-90,y:58,w:180,h:44,hold:'y'}); }
-    if(M.state==='ready' && M.half===1 && M.clock<1 && M.score[0]+M.score[1]===0){ frameBox(c,W/2-110,H-34,220,28,{plain:true}); textC(c,'Mover: direcional · A: chutar / roubar',W/2,H-29,'#f3e9d2'); textC(c,'B: passar (ou pedir a bola) · ▲▼ ao chutar: mirar',W/2,H-18,'#b8aac8'); }
+    if(M.msg && (M.state!=='play' || M.t-M.msgT<1.2)){ const big=M.state==='goal'||M.state==='half'||M.state==='end'; textC(c,M.msg,W/2,big?26:28,M.msg.startsWith('GOO')?'#ffe060':'#ffffff','#000',big?3:1); }
+    if(M.state==='prompt'){ const pr=M.prompt; frameBox(c,W/2-112,22,224,34,{fill:'rgba(30,20,10,0.94)',b1:'#f2c45a'});
+      textC(c,pr.kind==='goal'?'Eles marcaram!':'Você errou!',W/2,26,'#ffd0a0','#000'); const kl=K('time'); const tw=textW('Segure  para voltar no tempo')+(G.input==='kb'?textW(kl)+6:10); let x0=W/2-tw/2; text(c,'Segure',x0,37,'#f2d27a'); x0+=textW('Segure')+3; x0+=keycap(c,x0,36,kl,'#c99a3a')+3; text(c,'para voltar no tempo',x0,37,'#f2d27a');
+      const k=Math.min(1,pr.hold/0.8); R(c,W/2-70,48,140,3,'#2a1a10'); R(c,W/2-70,48,Math.round(140*k),3,'#f2c45a'); R(c,W/2-70,52,Math.round(140*(1-pr.t/3.2)),1,'#c87a4a');
+      G.hits.push({x:W/2-112,y:22,w:224,h:34,hold:'y'}); }
+    if(M.state==='ready' && M.half===1 && M.clock<1 && M.score[0]+M.score[1]===0){ frameBox(c,W/2-120,22,240,28,{plain:true});
+      if(G.input==='kb'){ let x=W/2-112; x+=keycap(c,x,25,'Setas')+3; text(c,'correr',x,26,'#f3e9d2'); x+=34; x+=keycap(c,x,25,'E')+3; text(c,'chutar / passar / roubar',x,26,'#f3e9d2'); textC(c,'↑↓ ao chutar: mirar · Espaço: voltar no tempo ao errar'.replace('↑↓','▲▼'),W/2,38,'#b8aac8'); }
+      else { textC(c,K('move')+': correr · '+K('act')+': chutar/roubar · B: passar',W/2,26,'#f3e9d2'); textC(c,'▲▼ ao chutar: mirar',W/2,38,'#b8aac8'); } }
   };
   return M;
 }
@@ -1980,7 +2012,7 @@ async function cap1(){
   setScene(SCENES.quarto('2016')); const s=sc().state; s.clockTxt='23:47'; mkLucas(190,LOOKS.lucas16,{facing:-1}); G.camFollow='lucas'; ambRain(0.4); playMusic('menu');
   await fade(0,1.2);
   await think('E se eu pudesse voltar no tempo?'); await think('Se existisse um jeito...');
-  bg(()=>narr('Direcional: andar   ·   A: interagir   ·   START: pausa',4));
+  bg(()=>narr(K('move')+': andar   ·   '+K('act')+': interagir   ·   '+K('pause')+': pausa',4.5));
   const items=[{x:31,label:'Guarda-roupa',id:'ward'},{x:96,label:'Olhar a chuva',id:'win'},{x:163,label:'Foto antiga',id:'photo'},{x:200,label:'Dormir',id:'bed'},{x:312,label:'Usar computador',id:'pc'},{x:358,label:'Lixeira',id:'trash'},{x:385,label:'Sair',id:'door'}];
   const resp={ward:'Cinco camisas iguais. Uma pra cada dia.',win:'A cidade nunca dorme. Eu é que nunca acordo.',photo:'2005... A gente era feliz e nem sabia.',bed:'Não consigo dormir. Amanhã é tudo igual de novo.',trash:'Vazia. Igual a mim.',door:'Pra onde? Tá tudo fechado.'};
   while(true){ const id=await free(items); if(id==='pc') break; await think(resp[id]); }
@@ -2016,7 +2048,7 @@ async function cap1(){
   await think('Parece... antigo. E tá quente.');
   const tent={0:'Gira, gira... e nada.',1:'Clic. Nada.',2:'Sacudir um relógio. Que gênio eu sou.'};
   for(let k=0;k<2;k++){ const c=await choice('Como usar?',['Girar a coroa','Apertar o botão','Sacudir'],{time:10,id:'usar relógio '+(k+1)}); if(c>=0){ sfx(c===1?'tick':'error'); G.wst.spin=c===0?3:0.2; await think(tent[c]); G.wst.spin=0.2; } }
-  bg(()=>narr('Segure Y (botão amarelo) para usar o relógio',3));
+  bg(()=>narr('Segure '+K('time')+' para usar o relógio',3));
   const used=await watchUse({hint:'tentar usar',time:7});
   if(used){ G.wst.glow=0.4; sfx('glitch'); await wait(0.4); G.wst.glow=0; sfx('error'); }
   await say('Lucas','Eu sabia. Mais uma mentira.',{expr:'angry'});
@@ -2130,7 +2162,7 @@ async function cap3(){
   await say('Miguel','Quer pular essa aula? Segura o relógio. Pensa no que vem depois. Só isso.');
   const t=await choice('Ouvir o Miguel?',['Tá. Me mostra.','Sai daqui, cara.'],{time:8,id:'tutorial do relógio'});
   if(t===0) G.flags.angel++; else await say('Miguel','Vou ficar. Mas vou falar baixinho.',{expr:'smile'});
-  bg(()=>narr('Segure Y (botão amarelo) para pular',3));
+  bg(()=>narr('Segure '+K('time')+' para voltar/pular no tempo',3));
   await watchUse({hint:'pular a aula'}); rmActor('miguel');
   playMusic('feliz'); await watchAnim({forward:true,dur:2.4});
   setScene(SCENES.lan()); addActor('ze',LOOKS.ze,40,{z:-1}); mkLucas(200,LOOKS.lucas05,{watch:true,expr:'happy'}); G.camFollow='lucas'; flashW(1);
@@ -2410,14 +2442,14 @@ OV.paper = { draw(c,t){ const p=G.paper; bands(c,0,0,W,H,['#0c0816','#140e20','#
   let yy=y+26; p.lines.forEach(l=>{ wrap(l,w-24).forEach(s2=>{ text(c,s2,x+12,yy,'#3a2010'); yy+=11; }); yy+=3; });
   if(p.sign) text(c,p.sign,x+w-12-textW(p.sign),y+h-16,'#5a3a2a');
   if(p.date) text(c,p.date,x+12,y+h-16,'#8a6a4a');
-  textC(c,'A: continuar',W/2,H-8,'#8a80a8'); }};
+  textC(c,K('act')+': continuar',W/2,H-8,'#8a80a8'); }};
 OV.mail = { draw(c,t){ const m=G.mail; R(c,0,0,W,H,'#07060c'); R(c,18,6,284,160,'#cfc6ad'); R(c,22,10,276,146,'#111'); const sx=26,sy=14,sw=268,sh=138;
   c.save(); c.beginPath(); c.rect(sx,sy,sw,sh); c.clip(); R(c,sx,sy,sw,sh,'#e8e8f0'); bands(c,sx,sy,sw,10,['#2a4a9a','#3a5ab0']); text(c,'Correio · augusto.diretor@escola.br',sx+3,sy+1,'#fff');
   R(c,sx,sy+10,90,sh-10,'#d0d0dc'); m.list.forEach((e,i)=>{ const yy=sy+14+i*22; if(i===m.sel) R(c,sx+1,yy-2,88,21,'#a8c0f0'); text(c,e.subj.slice(0,15),sx+4,yy,'#111'); text(c,e.date,sx+4,yy+9,'#666'); });
   const e=m.list[m.sel]; text(c,'De: '+e.from,sx+96,sy+14,'#333'); text(c,'Assunto: '+e.subj,sx+96,sy+24,'#111'); R(c,sx+96,sy+34,168,1,'#999');
   let yy=sy+40; wrap(e.body,166).forEach(l=>{ text(c,l,sx+96,yy,'#222'); yy+=10; });
   for(let y=sy;y<sy+sh;y+=2) R(c,sx,y,sw,1,'rgba(0,0,0,0.06)'); c.restore();
-  textC(c,'A: próximo e-mail',W/2,H-8,'#8a80a8'); }};
+  textC(c,K('act')+': próximo e-mail',W/2,H-8,'#8a80a8'); }};
 OV.photo = { draw(c,t){ R(c,0,0,W,H,'#120c08'); vgrad(c,0,0,W,H,[[0,'#2a1a10'],[1,'#0a0604']]);
   const x=80,y=20,w=160,h=130; R(c,x-6,y-6,w+12,h+12,'#c8a040'); R(c,x-4,y-4,w+8,h+8,'#8a6a20'); R(c,x,y,w,h,'#e8d0a0');
   bands(c,x,y,w,h,['#e8c890','#d8b880','#c8a070']); dith(c,x,y,w,h,'#b8905880');
@@ -2426,7 +2458,7 @@ OV.photo = { draw(c,t){ R(c,0,0,W,H,'#120c08'); vgrad(c,0,0,W,H,[[0,'#2a1a10'],[
   R(c,x+94,y+88,54,42,yA.shirt); R(c,x+117,y+88,6,42,yA.tie); drawHead(c,x+100,y+42,4,yA,'happy',0,false,t);
   R(c,x+60,y+96,36,30,'#f0f0f8'); drawHead(c,x+64,y+74,2.8,LOOKS.kid2,'happy',0,false,t);
   dith(c,x,y,w,h,'#f0d8a020',Math.floor(t)%2); text(c,'1992',x+w-24,y+h-10,'#6a4a20');
-  textC(c,'A: continuar',W/2,H-8,'#8a80a8'); }};
+  textC(c,K('act')+': continuar',W/2,H-8,'#8a80a8'); }};
 OV.caderno = { draw(c,t){ bands(c,0,0,W,H,['#101820','#141e28','#18242e']); const x=50,y=14,w=220,h=150; R(c,x,y,w,h,'#f6f4ec'); for(let yy=y+16;yy<y+h;yy+=10) R(c,x,yy,w,1,'#b8c8e0'); R(c,x+18,y,1,h,'#e89a9a');
   textC(c,'caderno do Pedro',x+w/2,y+4,'#2a3a6a');
   // mapa desenhado
@@ -2434,7 +2466,7 @@ OV.caderno = { draw(c,t){ bands(c,0,0,W,H,['#101820','#141e28','#18242e']); cons
   R(c,x+26,y+118,10,8,'#d84a3c'); text(c,'escola',x+20,y+128,'#d84a3c');
   R(c,x+160,y+36,20,14,'#333'); c.fillStyle='#333'; c.beginPath(); c.moveTo(x+157,y+37); c.lineTo(x+170,y+28); c.lineTo(x+183,y+37); c.fill(); text(c,'casa dos Moraes',x+120,y+56,'#333');
   text(c,'NÃO é assombrada!!',x+30,y+30,'#2a3a6a'); text(c,'vou provar. sexta.',x+30,y+42,'#2a3a6a'); text(c,'(não ir depois da meia-noite)',x+60,y+136,'#a33');
-  textC(c,'A: continuar',W/2,H-8,'#8a80a8'); }};
+  textC(c,K('act')+': continuar',W/2,H-8,'#8a80a8'); }};
 function drawClockPuzzle(c,val,t){ bands(c,0,0,W,H,['#0c0608','#140a0c','#1a0e10']); const cx=160,cy=86,r=50;
   circ(c,cx,cy,r+6,'#3a2014'); circ(c,cx,cy,r+3,'#a08040'); circ(c,cx,cy,r,'#d8d0b8'); for(let i=1;i<=12;i++){ const a=i/12*Math.PI*2; textC(c,String(i),cx+Math.sin(a)*(r-9),cy-Math.cos(a)*(r-9)-3,'#2a1a10'); }
   const a=(val%12)/12*Math.PI*2; for(let k=-1;k<=1;k++) line(c,cx+k,cy,cx+k+Math.sin(a)*30,cy-Math.cos(a)*30,'#1a0c08'); line(c,cx,cy,cx,cy-40,'#6a1a1a'); circ(c,cx,cy,3,'#a08040');
@@ -2590,7 +2622,7 @@ async function storyDiretor(){
   playMusic('misterio');
   // fase 1: perguntar por aí
   addActor('prof',LOOKS.prof,62,{facing:1}); addActor('cida',LOOKS.cida,407,{facing:1,z:-1}); addActor('zelador',LOOKS.zelador,500,{facing:-1});
-  bg(()=>narr('Converse com as pessoas da escola. Pistas: START › Caderno de pistas',4));
+  bg(()=>narr('Converse com as pessoas da escola. Pistas: '+K('pause')+' › Caderno de pistas',4));
   const asked={};
   while(true){
     const items=[{x:62,label:'Professor',id:'prof'},{x:407,label:'Dona Cida',id:'cida'},{x:500,label:'Zelador',id:'zel'},{x:160,label:'Cantina',id:'neide'},{x:574,label:'Diretoria',id:'porta'}].filter(i=>!asked[i.id]||i.id==='porta');
@@ -2674,7 +2706,7 @@ async function storyDiretor(){
     if(res==='ok'){ got=true; await think('Peguei! "Pai: em branco". E, a lápis: "Qualquer despesa, falar com A."'); break; }
     sfx('error'); G.shake=0.6; actor('diretor').facing=Math.sign(actor('lucas').x-actor('diretor').x)||1;
     await say('Diretor','LUCAS! O que você está fazendo fora da sala?',{expr:'angry'});
-    bg(()=>narr('Segure Y para voltar no tempo e tentar de novo',3));
+    bg(()=>narr('Segure '+K('time')+' para voltar no tempo e tentar de novo',3));
     const rw=await watchUse({hint:'voltar no tempo',time:6});
     if(rw){ await watchAnim({dur:1.6}); continue; }
     await say('Diretor','Pra sala. E se eu te pegar de novo, vai direto pra minha sala.',{expr:'angry'}); break;
@@ -2777,7 +2809,7 @@ async function storyPedro(){
   setScene(SCENES.mansao('hall')); mkLucas(30,LOOKS.lucas05,{watch:true}); G.camFollow='lucas'; ambRain(0);
   await fade(0,0.6); await wait(0.5); sfx('slam'); G.shake=1; await say('Lucas','A porta!',{expr:'shock'});
   await free([{x:28,label:'Abrir a porta',id:'p'}]); sfx('error'); await think('Trancada. Por dentro. Como assim por dentro?');
-  await think('O relógio...'); bg(()=>narr('Segure Y para usar o relógio',2.5));
+  await think('O relógio...'); bg(()=>narr('Segure '+K('time')+' para usar o relógio',2.5));
   const tw=await watchUse({hint:'voltar no tempo',time:6}); if(tw){ sfx('error'); G.fx.glitch=0.5; await wait(0.4); G.fx.glitch=0; }
   await think('Os ponteiros pararam. Aqui dentro o relógio não funciona.');
   sc().state.stopped=true;
@@ -2834,7 +2866,7 @@ async function storyPedro(){
   await Promise.all([walk('lucas',60,90,'run'),walk('pedro',80,80,'run')]);
   sfx('crash'); G.shake=1; actor('pedro').y+=6; actor('pedro').expr='cry'; await say('Pedro','LUCAS! O CHÃO! ME SEGURA!',{expr:'cry'});
   const need=Math.max(8,12+f.risk*6-f.trust*2);
-  const ok=await mash('PUXE O PEDRO! (aperte A rápido)',need,4.5);
+  const ok=await mash('PUXE O PEDRO! (aperte '+K('act')+' rápido)',need,4.5);
   stopFollow();
   if(ok){ actor('pedro').y-=6; actor('pedro').expr='n'; sfx('door'); await say('Lucas','Segurei! Vem!',{expr:'shock'}); await Promise.all([walk('lucas',14,90,'run'),walk('pedro',14,90,'run')]); G.flags.pedroAlive=true; }
   else { G.flash=0.6; sfx('crash'); rmActor('pedro'); G.flags.pedroAlive=false; await say('Lucas','PEDRO!!!',{expr:'cry'}); await think('O relógio... parado. Como a casa inteira.'); await walk('lucas',14,90,'run'); }

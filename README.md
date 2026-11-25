@@ -8,7 +8,7 @@ Funciona no celular e no PC. Use fones de ouvido.
 
 - **iPhone:** abra o link no Safari → Compartilhar → "Adicionar à Tela de Início" (vira app, tela cheia, funciona offline).
 - **Android:** abra no Chrome → menu ⋮ → "Instalar app". Ou baixe o APK em **Actions → Gerar APK Android → Artifacts**.
-- **PC:** teclado (setas, Z/Enter = A, X = B, C = relógio, P = pausa, F = tela cheia) ou controle.
+- **PC:** Setas/WASD = andar · **E** = interagir · **Espaço** (segurar) = voltar no tempo · **Esc** = pausa · F = tela cheia. Também funciona com controle.
 
 ## A história
 Lucas vive o mesmo dia todo dia, até comprar um relógio que o leva de volta a 2005. Lá, além de reencontrar a vida que queria, ele pode:
